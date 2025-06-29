@@ -84,7 +84,7 @@ with st.expander("ℹ️ How to Use the Databricks Query Generator"):
     - 📦 Downloadable Excel template
     - 🛡️ SQL syntax validation
     - ⚙️ Optional parameterized queries
-    - ✨ Supports mandatory/optional columns
+    - ✨ Supports mandatory/optional columns with not-null validation
     - 💾 Save generated queries
     """)
 
@@ -133,24 +133,23 @@ if uploaded_file:
     final_values = insert_values + optional_values
 
     if st.button("Generate Insert Query"):
-    # Check for missing mandatory values
-    missing_fields = [col for col, val in zip(mandatory_columns, insert_values) if not val.strip()]
-    if missing_fields:
-        st.error(f"🚨 Mandatory fields missing values: {', '.join(missing_fields)}")
-    else:
-        insert_query = build_insert_query(catalog, schema, selected_table, final_columns, final_values, param_mode=param_mode)
-        if is_valid_sql(insert_query):
-            st.success("✅ SQL syntax looks valid!")
-            st.code(insert_query, language='sql')
-            st.download_button(
-                label="💾 Download Query as .sql",
-                data=insert_query.encode('utf-8'),
-                file_name=f"{selected_table}_insert.sql",
-                mime="text/sql",
-            )
+        # Not null check for mandatory fields
+        missing_fields = [col for col, val in zip(mandatory_columns, insert_values) if not val.strip()]
+        if missing_fields:
+            st.error(f"🚨 Mandatory fields missing values: {', '.join(missing_fields)}")
         else:
-            st.error("❌ Generated INSERT query is invalid!")
-
+            insert_query = build_insert_query(catalog, schema, selected_table, final_columns, final_values, param_mode=param_mode)
+            if is_valid_sql(insert_query):
+                st.success("✅ SQL syntax looks valid!")
+                st.code(insert_query, language='sql')
+                st.download_button(
+                    label="💾 Download Query as .sql",
+                    data=insert_query.encode('utf-8'),
+                    file_name=f"{selected_table}_insert.sql",
+                    mime="text/sql",
+                )
+            else:
+                st.error("❌ Generated INSERT query is invalid!")
 
     st.subheader("Update Query")
     st.markdown("#### Select Columns to Update")

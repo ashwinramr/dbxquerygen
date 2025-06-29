@@ -49,6 +49,44 @@ def generate_sample_excel():
     return output
 
 # --- Streamlit UI ---
+with st.expander("ℹ️ How to Use the Databricks Query Generator"):
+    st.markdown("""
+    This tool helps you **generate valid SQL `INSERT` and `UPDATE` queries** for your Databricks tables using table metadata from an Excel file.
+
+    ### ✅ Step 1 — Download the Template
+    - Click the **“📥 Download Excel Template”** button below.
+    - Open the downloaded `sample_metadata.xlsx`.
+    - Fill in:
+      - **Sheet `tables`:** Add your table names along with their catalog and schema.
+      - **Sheet `columns`:** For each table, list the columns you plan to use, including column names and data types.
+
+    ### ✅ Step 2 — Upload Your Metadata
+    - Upload your filled Excel file by clicking **Upload Excel with Table & Column Metadata**.
+    - The app will read your tables and columns.
+
+    ### ✅ Step 3 — Generate Queries
+    1. Select your table from the dropdown.
+    2. Confirm or edit the **Catalog** and **Schema** fields.
+    3. For **INSERT Queries**:
+       - Enter values for each column.
+       - Click **Generate Insert Query**.
+       - The app will validate and display your SQL query.
+    4. For **UPDATE Queries**:
+       - Select columns to update and provide new values.
+       - Choose the column and value for the `WHERE` clause.
+       - Click **Generate Update Query**.
+       - The app will validate and display your SQL query.
+
+    ### ✅ Step 4 — Validate and Use Your Queries
+    - If validation passes ✅, you’ll see your SQL query with syntax highlighting.
+    - If validation fails ❌, you’ll get an error message.
+
+    ### 🎯 Key Features
+    - 📦 Downloadable Excel template
+    - 🔎 SQL syntax validation
+    - 🎨 User-friendly web interface
+    - 📋 Compatible with Databricks and other SQL engines
+    """)
 
 st.title("Databricks Query Generator with SQL Validation")
 

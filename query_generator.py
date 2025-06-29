@@ -133,6 +133,11 @@ if uploaded_file:
     final_values = insert_values + optional_values
 
     if st.button("Generate Insert Query"):
+    # Check for missing mandatory values
+    missing_fields = [col for col, val in zip(mandatory_columns, insert_values) if not val.strip()]
+    if missing_fields:
+        st.error(f"🚨 Mandatory fields missing values: {', '.join(missing_fields)}")
+    else:
         insert_query = build_insert_query(catalog, schema, selected_table, final_columns, final_values, param_mode=param_mode)
         if is_valid_sql(insert_query):
             st.success("✅ SQL syntax looks valid!")
@@ -145,6 +150,7 @@ if uploaded_file:
             )
         else:
             st.error("❌ Generated INSERT query is invalid!")
+
 
     st.subheader("Update Query")
     st.markdown("#### Select Columns to Update")

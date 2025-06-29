@@ -44,9 +44,10 @@ def generate_sample_excel():
         "schema_name": ["my_schema"]
     })
     columns_df = pd.DataFrame({
-        "table_name": ["my_table", "my_table"],
-        "column_name": ["id", "name"],
-        "data_type": ["int", "string"]
+        "table_name": ["my_table", "my_table", "my_table", "my_table"],
+        "column_name": ["id", "name", "age", "address"],
+        "data_type": ["int", "string", "int", "string"],
+        "is_mandatory": ["yes", "yes", "no", "no"]
     })
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -57,7 +58,7 @@ def generate_sample_excel():
 
 # --- Streamlit UI ---
 
-st.title("Databricks Query Generator with SQL Validation & Parameterization")
+st.title("Databricks Query Generator with Mandatory & Optional Fields")
 
 with st.expander("ℹ️ How to Use the Databricks Query Generator"):
     st.markdown("""
@@ -68,35 +69,23 @@ with st.expander("ℹ️ How to Use the Databricks Query Generator"):
     - Open the downloaded `sample_metadata.xlsx`.
     - Fill in:
       - **Sheet `tables`:** Add your table names along with their catalog and schema.
-      - **Sheet `columns`:** For each table, list the columns you plan to use, including column names and data types.
+      - **Sheet `columns`:** Add each column name, data type, and whether it is mandatory (yes/no).
 
     ### ✅ Step 2 — Upload Your Metadata
-    - Upload your filled Excel file by clicking **Upload Excel with Table & Column Metadata**.
-    - The app will read your tables and columns.
+    - Upload your filled Excel file below.
 
     ### ✅ Step 3 — Generate Queries
-    1. Select your table from the dropdown.
-    2. Confirm or edit the **Catalog** and **Schema** fields.
-    3. For **INSERT Queries**:
-       - Enter values for each column.
-       - Click **Generate Insert Query**.
-       - The app will validate and display your SQL query.
-    4. For **UPDATE Queries**:
-       - Select columns to update and provide new values.
-       - Choose the column and value for the `WHERE` clause.
-       - Click **Generate Update Query**.
-       - The app will validate and display your SQL query.
+    - Mandatory fields appear automatically.
+    - Select any optional columns you want to include.
+    - Click **Generate Insert Query** or **Generate Update Query**.
+    - Download your generated queries as `.sql` files.
 
-    ### ✅ Step 4 — Validate and Save Your Queries
-    - If validation passes ✅, you’ll see your SQL query with syntax highlighting.
-    - Download the query as a `.sql` file for reuse in ETL or scripts.
-
-    ### 🎯 Key Features
+    ### 🎯 Features
     - 📦 Downloadable Excel template
-    - 🔎 SQL syntax validation
-    - ⚙️ Support for parameterized queries with `?` placeholders
-    - 💾 Save queries as .sql files
-    - 🎨 User-friendly web interface
+    - 🛡️ SQL syntax validation
+    - ⚙️ Optional parameterized queries
+    - ✨ Supports mandatory/optional columns
+    - 💾 Save generated queries
     """)
 
 excel_template = generate_sample_excel()
@@ -118,20 +107,33 @@ if uploaded_file:
     catalog = st.text_input("Catalog", value=table_info['catalog_name'])
     schema = st.text_input("Schema", value=table_info['schema_name'])
 
-    table_columns = columns_df[columns_df['table_name'] == selected_table]['column_name'].tolist()
+    # Get table columns and mandatory/optional status
+    table_columns_df = columns_df[columns_df['table_name'] == selected_table]
+    mandatory_columns = table_columns_df[table_columns_df['is_mandatory'].str.lower() == "yes"]['column_name'].tolist()
+    optional_columns = table_columns_df[table_columns_df['is_mandatory'].str.lower() == "no"]['column_name'].tolist()
 
-    # --- Parameterized toggle ---
+    # Parameterized toggle
     param_mode = st.checkbox("🔧 Generate Parameterized Query (use '?' instead of values)", value=False)
 
-    # --- Insert Query ---
-    st.subheader("Insert Query")
+    st.markdown("#### Mandatory Fields")
     insert_values = []
-    for col in table_columns:
-        val = st.text_input(f"Value for {col} (Insert)", key=f"insert_{col}")
+    for col in mandatory_columns:
+        val = st.text_input(f"Value for {col} (Mandatory)", key=f"insert_{col}")
         insert_values.append(val)
 
+    st.markdown("#### Optional Fields")
+    selected_optional_cols = st.multiselect("Select optional columns to include", optional_columns, key="optional_cols")
+
+    optional_values = []
+    for col in selected_optional_cols:
+        val = st.text_input(f"Value for {col} (Optional)", key=f"insert_optional_{col}")
+        optional_values.append(val)
+
+    final_columns = mandatory_columns + selected_optional_cols
+    final_values = insert_values + optional_values
+
     if st.button("Generate Insert Query"):
-        insert_query = build_insert_query(catalog, schema, selected_table, table_columns, insert_values, param_mode=param_mode)
+        insert_query = build_insert_query(catalog, schema, selected_table, final_columns, final_values, param_mode=param_mode)
         if is_valid_sql(insert_query):
             st.success("✅ SQL syntax looks valid!")
             st.code(insert_query, language='sql')
@@ -144,19 +146,19 @@ if uploaded_file:
         else:
             st.error("❌ Generated INSERT query is invalid!")
 
-    # --- Update Query ---
     st.subheader("Update Query")
-    set_columns = st.multiselect("Columns to Update", table_columns, key="update_cols")
-    set_values = []
-    for col in set_columns:
+    st.markdown("#### Select Columns to Update")
+    update_columns = st.multiselect("Columns to Update", final_columns, key="update_cols")
+    update_values = []
+    for col in update_columns:
         val = st.text_input(f"Value for {col} (Update)", key=f"update_{col}")
-        set_values.append(val)
+        update_values.append(val)
 
-    where_column = st.selectbox("WHERE Column", table_columns, key="where_col")
+    where_column = st.selectbox("WHERE Column", final_columns, key="where_col")
     where_value = st.text_input(f"Value for {where_column} (WHERE)", key="where_val")
 
     if st.button("Generate Update Query"):
-        update_query = build_update_query(catalog, schema, selected_table, set_columns, set_values, where_column, where_value, param_mode=param_mode)
+        update_query = build_update_query(catalog, schema, selected_table, update_columns, update_values, where_column, where_value, param_mode=param_mode)
         if is_valid_sql(update_query):
             st.success("✅ SQL syntax looks valid!")
             st.code(update_query, language='sql')

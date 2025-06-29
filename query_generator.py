@@ -10,15 +10,23 @@ def load_table_info(excel_file):
     columns_df = pd.read_excel(excel_file, sheet_name='columns')
     return tables_df, columns_df
 
-def build_insert_query(catalog, schema, table, columns, values):
+def build_insert_query(catalog, schema, table, columns, values, param_mode=False):
     cols = ", ".join(columns)
-    vals = ", ".join([f"'{v}'" for v in values])
+    if param_mode:
+        vals = ", ".join(["?" for _ in values])
+    else:
+        vals = ", ".join([f"'{v}'" for v in values])
     query = f"INSERT INTO {catalog}.{schema}.{table} ({cols}) VALUES ({vals});"
     return query
 
-def build_update_query(catalog, schema, table, set_columns, set_values, where_column, where_value):
-    set_expr = ", ".join([f"{col}='{val}'" for col, val in zip(set_columns, set_values)])
-    query = f"UPDATE {catalog}.{schema}.{table} SET {set_expr} WHERE {where_column}='{where_value}';"
+def build_update_query(catalog, schema, table, set_columns, set_values, where_column, where_value, param_mode=False):
+    if param_mode:
+        set_expr = ", ".join([f"{col}=?" for col in set_columns])
+        where_expr = f"{where_column}=?"
+    else:
+        set_expr = ", ".join([f"{col}='{val}'" for col, val in zip(set_columns, set_values)])
+        where_expr = f"{where_column}='{where_value}'"
+    query = f"UPDATE {catalog}.{schema}.{table} SET {set_expr} WHERE {where_expr};"
     return query
 
 def is_valid_sql(query: str) -> bool:
@@ -30,7 +38,6 @@ def is_valid_sql(query: str) -> bool:
         return False
 
 def generate_sample_excel():
-    # Example dataframes
     tables_df = pd.DataFrame({
         "table_name": ["my_table"],
         "catalog_name": ["my_catalog"],
@@ -49,6 +56,9 @@ def generate_sample_excel():
     return output
 
 # --- Streamlit UI ---
+
+st.title("Databricks Query Generator with SQL Validation & Parameterization")
+
 with st.expander("ℹ️ How to Use the Databricks Query Generator"):
     st.markdown("""
     This tool helps you **generate valid SQL `INSERT` and `UPDATE` queries** for your Databricks tables using table metadata from an Excel file.
@@ -77,22 +87,17 @@ with st.expander("ℹ️ How to Use the Databricks Query Generator"):
        - Click **Generate Update Query**.
        - The app will validate and display your SQL query.
 
-    ### ✅ Step 4 — Validate and Use Your Queries
+    ### ✅ Step 4 — Validate and Save Your Queries
     - If validation passes ✅, you’ll see your SQL query with syntax highlighting.
-    - If validation fails ❌, you’ll get an error message.
+    - Download the query as a `.sql` file for reuse in ETL or scripts.
 
     ### 🎯 Key Features
     - 📦 Downloadable Excel template
     - 🔎 SQL syntax validation
+    - ⚙️ Support for parameterized queries with `?` placeholders
+    - 💾 Save queries as .sql files
     - 🎨 User-friendly web interface
-    - 📋 Compatible with Databricks and other SQL engines
     """)
-
-st.title("Databricks Query Generator with SQL Validation")
-
-st.markdown("""
-Download the sample Excel template, fill in your tables and columns, and upload it below.
-""")
 
 excel_template = generate_sample_excel()
 st.download_button(
@@ -114,6 +119,11 @@ if uploaded_file:
     schema = st.text_input("Schema", value=table_info['schema_name'])
 
     table_columns = columns_df[columns_df['table_name'] == selected_table]['column_name'].tolist()
+
+    # --- Parameterized toggle ---
+    param_mode = st.checkbox("🔧 Generate Parameterized Query (use '?' instead of values)", value=False)
+
+    # --- Insert Query ---
     st.subheader("Insert Query")
     insert_values = []
     for col in table_columns:
@@ -121,13 +131,20 @@ if uploaded_file:
         insert_values.append(val)
 
     if st.button("Generate Insert Query"):
-        insert_query = build_insert_query(catalog, schema, selected_table, table_columns, insert_values)
+        insert_query = build_insert_query(catalog, schema, selected_table, table_columns, insert_values, param_mode=param_mode)
         if is_valid_sql(insert_query):
             st.success("✅ SQL syntax looks valid!")
             st.code(insert_query, language='sql')
+            st.download_button(
+                label="💾 Download Query as .sql",
+                data=insert_query.encode('utf-8'),
+                file_name=f"{selected_table}_insert.sql",
+                mime="text/sql",
+            )
         else:
             st.error("❌ Generated INSERT query is invalid!")
 
+    # --- Update Query ---
     st.subheader("Update Query")
     set_columns = st.multiselect("Columns to Update", table_columns, key="update_cols")
     set_values = []
@@ -139,10 +156,16 @@ if uploaded_file:
     where_value = st.text_input(f"Value for {where_column} (WHERE)", key="where_val")
 
     if st.button("Generate Update Query"):
-        update_query = build_update_query(catalog, schema, selected_table, set_columns, set_values, where_column, where_value)
+        update_query = build_update_query(catalog, schema, selected_table, set_columns, set_values, where_column, where_value, param_mode=param_mode)
         if is_valid_sql(update_query):
             st.success("✅ SQL syntax looks valid!")
             st.code(update_query, language='sql')
+            st.download_button(
+                label="💾 Download Query as .sql",
+                data=update_query.encode('utf-8'),
+                file_name=f"{selected_table}_update.sql",
+                mime="text/sql",
+            )
         else:
             st.error("❌ Generated UPDATE query is invalid!")
 else:
